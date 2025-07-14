@@ -14,8 +14,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 find_package(Qt6 REQUIRED COMPONENTS OpenGLWidgets)
-find_package(Qt6 REQUIRED COMPONENTS Gui)
+find_package(Qt6 REQUIRED COMPONENTS Gui Core)
 find_package(OpenCASCADE REQUIRED)
+find_package(Qt6 REQUIRED X11Extras 5Compat)
 
 set(PROJECT_SOURCES
         main.cpp
@@ -54,6 +55,7 @@ target_link_libraries(OCCTViewer PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(OCCTViewer PRIVATE Qt6::OpenGLWidgets)
 target_link_libraries(OCCTViewer PRIVATE Qt6::Gui)
 target_link_libraries(OCCTViewer PRIVATE ${OpenCASCADE_LIBRARIES})
+target_link_libraries(OCCTViewer PRIVATE Qt6::Core Qt6::X11Extras Qt6::5Compat)
 target_link_libraries(${PROJECT_NAME} PRIVATE
     TKernel
     TKMath

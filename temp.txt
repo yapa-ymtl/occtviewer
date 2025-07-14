@@ -1,66 +1,46 @@
-cmake_minimum_required(VERSION 3.16)
+void MyGLWidget::showEvent(QShowEvent* event)
+{
+    QOpenGLWidget::showEvent(event);
 
-project(OCCTViewer VERSION 0.1 LANGUAGES CXX)
+#ifdef Q_OS_LINUX
+    using namespace QNativeInterface;
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    if (!m_view.IsNull() && m_view->Window().IsNull())
+    {
+        auto *x11App = qGuiApp->nativeInterface<QX11Application>();
+        if (x11App)
+        {
+            Display* display = x11App->display();
+            Window win = static_cast<Window>(this->winId());
 
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC ON)
+            Handle(Aspect_DisplayConnection) displayConnection = new Aspect_DisplayConnection(display);
+            Handle(Xw_Window) occtWindow = new Xw_Window(
+                displayConnection,
+                win,
+                this->x(), this->y(), this->width(), this->height()
+            );
 
-# Find Qt
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGL)
+            if (!occtWindow->IsMapped())
+                occtWindow->Map();
 
-# Find OpenCASCADE
-find_package(OpenCASCADE REQUIRED COMPONENTS
-    FoundationClasses
-    ModelingData
-    ModelingAlgorithms
-    Visualization
-)
+            m_view->SetWindow(occtWindow);
+            m_view->MustBeResized();
+            m_view->FitAll();
+        }
+        else
+        {
+            qWarning() << "X11 native interface not available.";
+        }
+    }
 
-# Source files
-set(PROJECT_SOURCES
-    main.cpp
-    mainwindow.cpp
-    mainwindow.h
-    mainwindow.ui
-    myglwidget.cpp
-    myglwidget.h
-)
 
-qt_add_executable(${PROJECT_NAME}
-    ${PROJECT_SOURCES}
-)
+-------------
+find_package(X11 REQUIRED)
+target_link_libraries(OCCTViewer PRIVATE ${X11_LIBRARIES})
+include_directories(${X11_INCLUDE_DIR})
 
-# Include OpenCASCADE headers
-target_include_directories(${PROJECT_NAME} PRIVATE ${OpenCASCADE_INCLUDE_DIRS})
 
-# Link against Qt and OCCT libraries
-target_link_libraries(${PROJECT_NAME}
-    PRIVATE
-    Qt6::Core
-    Qt6::Widgets
-    Qt6::OpenGL
-
-    OpenCASCADE::TKBRep
-    OpenCASCADE::TKBool
-    OpenCASCADE::TKG3d
-    OpenCASCADE::TKG2d
-    OpenCASCADE::TKMath
-    OpenCASCADE::TKService
-    OpenCASCADE::TKTopAlgo
-    OpenCASCADE::TKernel
-    OpenCASCADE::TKGeomBase
-    OpenCASCADE::TKGeomAlgo
-    OpenCASCADE::TKOpenGl
-    OpenCASCADE::TKV3d
-    OpenCASCADE::TKShHealing
-)
-
-# Optional: Bundle settings for macOS
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    MACOSX_BUNDLE TRUE
-    WIN32_EXECUTABLE TRUE
-)
+    if (!m_view.IsNull())
+        m_view->Redraw();
+#endif
+}

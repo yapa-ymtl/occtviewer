@@ -27,3 +27,5 @@ target_link_libraries(OCCTViewer
     TKService
     TKXw             # <-- Required for Xw_Window
 )
+sudo apt update
+sudo apt install qt5-default qtbase5-dev qtbase5-dev-tools qt5-qmake qt5-x11extras

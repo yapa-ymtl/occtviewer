@@ -29,3 +29,40 @@ target_link_libraries(OCCTViewer
 )
 sudo apt update
 sudo apt install qt5-default qtbase5-dev qtbase5-dev-tools qt5-qmake qt5-x11extras
+
+-----------------
+#include <QGuiApplication>
+#include <QNativeInterface>
+#include <X11/Xlib.h>
+#include <Xw_Window.hxx>
+
+void MyGLWidget::showEvent(QShowEvent* event)
+{
+    QOpenGLWidget::showEvent(event);
+
+    if (!m_view.IsNull() && m_view->Window().IsNull()) {
+        // Get native interface
+        auto* x11App = qGuiApp->nativeInterface<QNativeInterface::QX11Application>();
+        if (!x11App) {
+            qWarning() << "X11 interface is not available. Not running on X11?";
+            return;
+        }
+
+        Display* xDisplay = x11App->display();
+        Window xWindow = static_cast<Window>(winId());
+
+        // Create OCCT window
+        Handle(Xw_Window) occtWindow = new Xw_Window(xDisplay, xWindow);
+
+        if (!occtWindow->IsMapped()) {
+            occtWindow->Map();
+        }
+
+        m_view->SetWindow(occtWindow);
+        m_view->MustBeResized();
+        m_view->FitAll();
+    }
+
+    if (!m_view.IsNull())
+        m_view->Redraw();
+}

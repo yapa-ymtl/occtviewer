@@ -7,10 +7,9 @@
 #include <Graphic3d_GraphicDriver.hxx>
 #include <V3d_Viewer.hxx>
 
-#ifdef Q_OS_LINUX
 #include <Xw_Window.hxx>
 #include <X11/Xlib.h>
-#endif
+#include <QtX11Extras/QX11Info> 
 
 MyGLWidget::MyGLWidget(QWidget* parent)
     : QOpenGLWidget(parent)

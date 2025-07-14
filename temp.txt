@@ -1,0 +1,29 @@
+git clone https://git.dev.opencascade.org/repos/occt.git
+cd occt
+mkdir build && cd build
+cmake .. \
+  -DCMAKE_INSTALL_PREFIX=/your/install/path \
+  -DBUILD_MODULE_Draw=OFF \
+  -DBUILD_MODULE_ApplicationFramework=OFF \
+  -DUSE_X11=ON
+make -j$(nproc)
+make install
+
+
+sudo apt install libx11-dev libxext-dev
+
+
+target_link_libraries(OCCTViewer
+    PRIVATE
+    Qt${QT_VERSION_MAJOR}::Widgets
+    TKernel
+    TKMath
+    TKBRep
+    TKGeomBase
+    TKTopAlgo
+    TKG3d
+    TKV3d
+    TKOpenGl
+    TKService
+    TKXw             # <-- Required for Xw_Window
+)

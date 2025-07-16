@@ -137,3 +137,10 @@ void MyGLWidget::paintGL()
         m_view->Redraw();
     }
 }
+==============
+#include <QGuiApplication>
+#include <QNativeInterface>
+
+if (auto *x11App = qGuiApp->nativeInterface<QNativeInterface::QX11Application>()) {
+    Display *display = x11App->display();
+}

@@ -1,46 +1,125 @@
-void MyGLWidget::showEvent(QShowEvent* event)
-{
+mkdir build
+cd build
+
+cmake .. \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=~/occt-install \
+  -DUSE_GL2PS=OFF \
+  -DUSE_TK=OFF \
+  -DBUILD_MODULE_Draw=OFF \
+  -DBUILD_MODULE_ApplicationFramework=OFF
+================
+#ifndef MYGLWIDGET_H
+#define MYGLWIDGET_H
+
+#include <QOpenGLWidget>
+#include <QOpenGLFunctions>
+
+#include <AIS_InteractiveContext.hxx>
+#include <V3d_View.hxx>
+#include <Graphic3d_GraphicDriver.hxx>
+#include <TopoDS_Shape.hxx>
+
+class MyGLWidget : public QOpenGLWidget, protected QOpenGLFunctions {
+    Q_OBJECT
+
+public:
+    explicit MyGLWidget(QWidget* parent = nullptr);
+    ~MyGLWidget();
+
+protected:
+    void initializeGL() override;
+    void resizeGL(int w, int h) override;
+    void paintGL() override;
+    void showEvent(QShowEvent* event) override;
+
+private:
+    Handle(V3d_View) m_view;
+    Handle(AIS_InteractiveContext) m_context;
+    Handle(Graphic3d_GraphicDriver) m_driver;
+    TopoDS_Shape m_shape;
+};
+
+#endif // MYGLWIDGET_H
+==================
+#include "MyGLWidget.h"
+
+#include <Aspect_DisplayConnection.hxx>
+#include <OpenGl_GraphicDriver.hxx>
+#include <BRepPrimAPI_MakeBox.hxx>
+#include <AIS_Shape.hxx>
+
+#include <QGuiApplication>
+#include <QNativeInterface>
+#include <QDebug>
+
+#include <Xw_Window.hxx>  // Only available if OCCT built with X11
+#include <X11/Xlib.h>
+
+MyGLWidget::MyGLWidget(QWidget* parent)
+    : QOpenGLWidget(parent) {}
+
+MyGLWidget::~MyGLWidget() {}
+
+void MyGLWidget::initializeGL() {
+    initializeOpenGLFunctions();
+
+    Handle(Aspect_DisplayConnection) displayConnection = new Aspect_DisplayConnection();
+    m_driver = new OpenGl_GraphicDriver(displayConnection);
+    
+    Handle(V3d_Viewer) viewer = new V3d_Viewer(m_driver);
+    viewer->SetDefaultLights();
+    viewer->SetLightOn();
+
+    m_context = new AIS_InteractiveContext(viewer);
+    m_view = viewer->CreateView();
+    m_view->SetBackgroundColor(Quantity_NOC_BLACK);
+
+    m_shape = BRepPrimAPI_MakeBox(100.0, 50.0, 90.0).Shape();
+    Handle(AIS_Shape) aisShape = new AIS_Shape(m_shape);
+    m_context->Display(aisShape, true);
+}
+
+void MyGLWidget::showEvent(QShowEvent* event) {
     QOpenGLWidget::showEvent(event);
 
-#ifdef Q_OS_LINUX
-    using namespace QNativeInterface;
-
-    if (!m_view.IsNull() && m_view->Window().IsNull())
-    {
-        auto *x11App = qGuiApp->nativeInterface<QX11Application>();
-        if (x11App)
-        {
-            Display* display = x11App->display();
-            Window win = static_cast<Window>(this->winId());
-
-            Handle(Aspect_DisplayConnection) displayConnection = new Aspect_DisplayConnection(display);
-            Handle(Xw_Window) occtWindow = new Xw_Window(
-                displayConnection,
-                win,
-                this->x(), this->y(), this->width(), this->height()
-            );
-
-            if (!occtWindow->IsMapped())
-                occtWindow->Map();
-
-            m_view->SetWindow(occtWindow);
-            m_view->MustBeResized();
-            m_view->FitAll();
-        }
-        else
-        {
-            qWarning() << "X11 native interface not available.";
-        }
+    if (m_view.IsNull() || !m_view->Window().IsNull()) {
+        return;
     }
 
+    // Get native X11 display and window
+    Display* xDisplay = nullptr;
+    Window xWindow = static_cast<Window>(winId());
 
--------------
-find_package(X11 REQUIRED)
-target_link_libraries(OCCTViewer PRIVATE ${X11_LIBRARIES})
-include_directories(${X11_INCLUDE_DIR})
+    if (auto* x11App = qGuiApp->nativeInterface<QNativeInterface::QX11Application>()) {
+        xDisplay = x11App->display();
+    }
 
+    if (!xDisplay) {
+        qWarning() << "X11 display not available";
+        return;
+    }
 
-    if (!m_view.IsNull())
+    Handle(Xw_Window) window = new Xw_Window(xDisplay, xWindow);
+    if (!window->IsMapped()) {
+        window->Map();
+    }
+
+    m_view->SetWindow(window);
+    m_view->MustBeResized();
+    m_view->FitAll();
+    m_view->Redraw();
+}
+
+void MyGLWidget::resizeGL(int w, int h) {
+    if (!m_view.IsNull() && !m_view->Window().IsNull()) {
+        m_view->Window()->DoResize();
+        m_view->MustBeResized();
+    }
+}
+
+void MyGLWidget::paintGL() {
+    if (!m_view.IsNull()) {
         m_view->Redraw();
-#endif
+    }
 }

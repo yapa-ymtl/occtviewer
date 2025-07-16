@@ -1,35 +1,21 @@
-mkdir build
-cd build
-
-cmake .. \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX=~/occt-install \
-  -DUSE_GL2PS=OFF \
-  -DUSE_TK=OFF \
-  -DBUILD_MODULE_Draw=OFF \
-  -DBUILD_MODULE_ApplicationFramework=OFF
-================
 #ifndef MYGLWIDGET_H
 #define MYGLWIDGET_H
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
-#include <QShowEvent>
 
-#include <AIS_InteractiveContext.hxx>
-#include <V3d_View.hxx>
-#include <V3d_Viewer.hxx>
-#include <TopoDS_Shape.hxx>
-#include <Graphic3d_GraphicDriver.hxx>
-#include <OpenGl_GraphicDriver.hxx>
 #include <Aspect_DisplayConnection.hxx>
+#include <Graphic3d_GraphicDriver.hxx>
+#include <V3d_View.hxx>
+#include <AIS_InteractiveContext.hxx>
+#include <TopoDS_Shape.hxx>
 
 class MyGLWidget : public QOpenGLWidget, protected QOpenGLFunctions
 {
     Q_OBJECT
 
 public:
-    MyGLWidget(QWidget* parent = nullptr);
+    explicit MyGLWidget(QWidget* parent = nullptr);
     ~MyGLWidget();
 
 protected:
@@ -41,41 +27,38 @@ protected:
 private:
     Handle(Aspect_DisplayConnection) m_displayConnection;
     Handle(Graphic3d_GraphicDriver) m_driver;
-    Handle(V3d_Viewer) m_viewer;
-    Handle(AIS_InteractiveContext) m_context;
     Handle(V3d_View) m_view;
+    Handle(AIS_InteractiveContext) m_context;
     TopoDS_Shape m_shape;
 };
 
 #endif // MYGLWIDGET_H
-
-==================
+=============
 #include "myglwidget.h"
 
-#include <QGuiApplication>
 #include <QDebug>
-#include <QSurfaceFormat>
+#include <QGuiApplication>
+#include <QResizeEvent>
 
 #include <Aspect_DisplayConnection.hxx>
 #include <OpenGl_GraphicDriver.hxx>
+#include <Graphic3d_GraphicDriver.hxx>
 #include <V3d_Viewer.hxx>
+#include <AIS_InteractiveContext.hxx>
 #include <AIS_Shape.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
-#include <Graphic3d_GraphicDriver.hxx>
 
-#include <QOpenGLContext>
-
-#ifdef Q_OS_UNIX
+#ifdef Q_OS_LINUX
 #include <X11/Xlib.h>
 #include <Xw_Window.hxx>
-#include <QWindow>
+#include <QX11Info>
 #endif
 
 MyGLWidget::MyGLWidget(QWidget* parent)
     : QOpenGLWidget(parent)
 {
-    setMinimumSize(800, 600);
-    qDebug() << "MyGLWidget constructed.";
+    setMinimumSize(400, 300);  // Ensure widget is visible
+    qDebug() << "MyGLWidget constructed";
 }
 
 MyGLWidget::~MyGLWidget() = default;
@@ -83,8 +66,10 @@ MyGLWidget::~MyGLWidget() = default;
 void MyGLWidget::initializeGL()
 {
     qDebug() << "initializeGL() called";
+
     initializeOpenGLFunctions();
 
+    // Display connection and driver
     m_displayConnection = new Aspect_DisplayConnection();
 
     if (m_driver.IsNull())
@@ -92,37 +77,20 @@ void MyGLWidget::initializeGL()
         m_driver = new OpenGl_GraphicDriver(m_displayConnection);
     }
 
-    m_viewer = new V3d_Viewer(m_driver);
-    m_viewer->SetDefaultLights();
-    m_viewer->SetLightOn();
+    // Viewer
+    Handle(V3d_Viewer) viewer = new V3d_Viewer(m_driver);
+    viewer->SetDefaultLights();
+    viewer->SetLightOn();
 
-    m_context = new AIS_InteractiveContext(m_viewer);
-    m_view = m_viewer->CreateView();
+    // View and context
+    m_view = viewer->CreateView();
+    m_context = new AIS_InteractiveContext(viewer);
+    m_view->SetBackgroundColor(Quantity_NOC_GRAY);
 
-    m_view->SetBackgroundColor(Quantity_NOC_BLACK);
-
-    // OCCT Shape
+    // Create a shape
     m_shape = BRepPrimAPI_MakeBox(100.0, 50.0, 90.0).Shape();
     Handle(AIS_Shape) aisShape = new AIS_Shape(m_shape);
     m_context->Display(aisShape, true);
-}
-
-void MyGLWidget::resizeGL(int w, int h)
-{
-    if (!m_view.IsNull() && !m_view->Window().IsNull())
-    {
-        m_view->Window()->DoResize();
-        m_view->MustBeResized();
-        m_view->FitAll();
-    }
-}
-
-void MyGLWidget::paintGL()
-{
-    if (!m_view.IsNull())
-    {
-        m_view->Redraw();
-    }
 }
 
 void MyGLWidget::showEvent(QShowEvent* event)
@@ -130,28 +98,42 @@ void MyGLWidget::showEvent(QShowEvent* event)
     QOpenGLWidget::showEvent(event);
     qDebug() << "showEvent() called";
 
-#ifdef Q_OS_UNIX
+#ifdef Q_OS_LINUX
     if (!m_view.IsNull() && m_view->Window().IsNull())
     {
-        auto* x11App = QGuiApplication::nativeInterface<QNativeInterface::QX11Application>();
-        if (!x11App)
-        {
-            qWarning() << "X11 interface is not available!";
-            return;
-        }
+        Display* xDisplay = QX11Info::display();
+        Window xWin = static_cast<Window>(winId());
 
-        Display* xDisplay = x11App->display();
-        Window xWindow = static_cast<Window>(winId());
-
-        Handle(Xw_Window) occtWindow = new Xw_Window(m_displayConnection, xWindow);
+        Handle(Xw_Window) occtWindow = new Xw_Window(m_displayConnection, xWin);
         if (!occtWindow->IsMapped())
+        {
             occtWindow->Map();
+        }
 
         m_view->SetWindow(occtWindow);
         m_view->MustBeResized();
         m_view->FitAll();
-        m_view->Redraw();
     }
 #endif
+
+    m_view->Redraw();
 }
 
+void MyGLWidget::resizeGL(int w, int h)
+{
+    qDebug() << "resizeGL(" << w << "," << h << ")";
+    if (!m_view.IsNull() && !m_view->Window().IsNull())
+    {
+        m_view->Window()->DoResize();
+        m_view->MustBeResized();
+    }
+}
+
+void MyGLWidget::paintGL()
+{
+    qDebug() << "paintGL() called";
+    if (!m_view.IsNull())
+    {
+        m_view->Redraw();
+    }
+}

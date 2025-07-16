@@ -45,74 +45,59 @@ private:
 #include "myglwidget.h"
 
 #include <QDebug>
-#include <QX11Info>
+#include <QGuiApplication>
+#include <QWindow>
+#include <QOpenGLContext>
+#include <QSurfaceFormat>
 
 #include <Aspect_DisplayConnection.hxx>
 #include <OpenGl_GraphicDriver.hxx>
 #include <Graphic3d_GraphicDriver.hxx>
 #include <V3d_Viewer.hxx>
+#include <AIS_InteractiveContext.hxx>
 #include <AIS_Shape.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 
+#ifdef Q_OS_UNIX
 #include <X11/Xlib.h>
 #include <Xw_Window.hxx>
+#include <QNativeInterface>
+#endif
 
 MyGLWidget::MyGLWidget(QWidget* parent)
     : QOpenGLWidget(parent)
 {
-    setMinimumSize(640, 480); // Ensure widget has enough space
+    qDebug() << "MyGLWidget constructor";
+    setMinimumSize(600, 400);
 }
 
 MyGLWidget::~MyGLWidget() = default;
 
 void MyGLWidget::initializeGL()
 {
+    qDebug() << "initializeGL called";
+
     initializeOpenGLFunctions();
 
-    // Create display connection
     Handle(Aspect_DisplayConnection) displayConnection = new Aspect_DisplayConnection();
 
-    // Create OCCT OpenGL driver
     if (m_driver.IsNull()) {
         m_driver = new OpenGl_GraphicDriver(displayConnection);
     }
 
-    // Create viewer
     Handle(V3d_Viewer) viewer = new V3d_Viewer(m_driver);
     viewer->SetDefaultLights();
     viewer->SetLightOn();
 
     m_context = new AIS_InteractiveContext(viewer);
     m_view = viewer->CreateView();
+
     m_view->SetBackgroundColor(Quantity_NOC_BLACK);
 
-    // Prepare shape (a simple box)
+    // Create test shape
     m_shape = BRepPrimAPI_MakeBox(100.0, 50.0, 90.0).Shape();
     Handle(AIS_Shape) aisShape = new AIS_Shape(m_shape);
     m_context->Display(aisShape, true);
-}
-
-void MyGLWidget::showEvent(QShowEvent* event)
-{
-    QOpenGLWidget::showEvent(event);
-
-    if (!m_view.IsNull() && m_view->Window().IsNull()) {
-        // Get X11 display and window ID
-        Display* xDisplay = QX11Info::display();
-        Window xWindow = static_cast<Window>(winId());
-
-        Handle(Aspect_DisplayConnection) displayConnection = new Aspect_DisplayConnection(xDisplay);
-        Handle(Xw_Window) occtWindow = new Xw_Window(displayConnection, xWindow, Quantity_NOC_BLACK);
-
-        if (!occtWindow->IsMapped())
-            occtWindow->Map();
-
-        m_view->SetWindow(occtWindow);
-        m_view->MustBeResized();
-        m_view->FitAll();
-    }
-
-    m_view->Redraw();
 }
 
 void MyGLWidget::resizeGL(int w, int h)
@@ -120,14 +105,37 @@ void MyGLWidget::resizeGL(int w, int h)
     if (!m_view.IsNull() && !m_view->Window().IsNull()) {
         m_view->Window()->DoResize();
         m_view->MustBeResized();
-        m_view->FitAll();
     }
 }
 
 void MyGLWidget::paintGL()
 {
-    if (!m_view.IsNull()) {
+    if (!m_view.IsNull())
         m_view->Redraw();
-    }
 }
 
+void MyGLWidget::showEvent(QShowEvent* event)
+{
+    QOpenGLWidget::showEvent(event);
+
+#ifdef Q_OS_UNIX
+    auto* x11App = QGuiApplication::nativeInterface<QNativeInterface::QX11Application>();
+    if (!x11App) {
+        qWarning() << "X11 interface not available. Are you running on Wayland?";
+        return;
+    }
+
+    Display* xDisplay = x11App->display();
+    Window xWindow = static_cast<Window>(winId());
+
+    Handle(Xw_Window) window = new Xw_Window(xDisplay, xWindow);
+
+    if (!window->IsMapped())
+        window->Map();
+
+    m_view->SetWindow(window);
+    m_view->MustBeResized();
+    m_view->FitAll();
+    m_view->Redraw();
+#endif
+}

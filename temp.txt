@@ -14,17 +14,22 @@ cmake .. \
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
+#include <QShowEvent>
 
 #include <AIS_InteractiveContext.hxx>
 #include <V3d_View.hxx>
-#include <Graphic3d_GraphicDriver.hxx>
+#include <V3d_Viewer.hxx>
 #include <TopoDS_Shape.hxx>
+#include <Graphic3d_GraphicDriver.hxx>
+#include <OpenGl_GraphicDriver.hxx>
+#include <Aspect_DisplayConnection.hxx>
 
-class MyGLWidget : public QOpenGLWidget, protected QOpenGLFunctions {
+class MyGLWidget : public QOpenGLWidget, protected QOpenGLFunctions
+{
     Q_OBJECT
 
 public:
-    explicit MyGLWidget(QWidget* parent = nullptr);
+    MyGLWidget(QWidget* parent = nullptr);
     ~MyGLWidget();
 
 protected:
@@ -34,13 +39,16 @@ protected:
     void showEvent(QShowEvent* event) override;
 
 private:
-    Handle(V3d_View) m_view;
-    Handle(AIS_InteractiveContext) m_context;
+    Handle(Aspect_DisplayConnection) m_displayConnection;
     Handle(Graphic3d_GraphicDriver) m_driver;
+    Handle(V3d_Viewer) m_viewer;
+    Handle(AIS_InteractiveContext) m_context;
+    Handle(V3d_View) m_view;
     TopoDS_Shape m_shape;
 };
 
 #endif // MYGLWIDGET_H
+
 ==================
 #include "myglwidget.h"
 
